@@ -238,7 +238,7 @@ public class MasterAddressTracker extends ZKNodeTracker {
     }
     int prefixLen = ProtobufUtil.lengthOfPBMagic();
     try {
-      return ZooKeeperProtos.Master.PARSER.parseFrom(data, prefixLen, data.length - prefixLen);
+      return ZooKeeperProtos.Master.parser().parseFrom(data, prefixLen, data.length - prefixLen);
     } catch (InvalidProtocolBufferException e) {
       throw new DeserializationException(e);
     }
