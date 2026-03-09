@@ -83,6 +83,9 @@ public class MetricsWAL implements WALActionsListener {
       case SLOW_SYNC:
         source.incrementSlowSyncLogRoll();
         break;
+      case SYNC_COUNT:
+        source.incrementSyncCountLogRoll();
+        break;
       default:
         break;
     }

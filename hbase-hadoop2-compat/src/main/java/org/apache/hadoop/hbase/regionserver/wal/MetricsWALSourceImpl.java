@@ -43,6 +43,7 @@ public class MetricsWALSourceImpl extends BaseSourceImpl implements MetricsWALSo
   private final MutableFastCounter lowReplicationRollRequested;
   private final MutableFastCounter slowSyncRollRequested;
   private final MutableFastCounter sizeRollRequested;
+  private final MutableFastCounter syncCountRollRequested;
   private final MutableFastCounter writtenBytes;
   private final MutableFastCounter successfulLogRolls;
   // Per table metrics.
@@ -74,6 +75,8 @@ public class MetricsWALSourceImpl extends BaseSourceImpl implements MetricsWALSo
       SLOW_SYNC_ROLL_REQUESTED_DESC, 0L);
     sizeRollRequested =
       this.getMetricsRegistry().newCounter(SIZE_ROLL_REQUESTED, SIZE_ROLL_REQUESTED_DESC, 0L);
+    syncCountRollRequested = this.getMetricsRegistry().newCounter(SYNC_COUNT_ROLL_REQUESTED,
+      SYNC_COUNT_ROLL_REQUESTED_DESC, 0L);
     writtenBytes = this.getMetricsRegistry().newCounter(WRITTEN_BYTES, WRITTEN_BYTES_DESC, 0L);
     successfulLogRolls =
       this.getMetricsRegistry().newCounter(SUCCESSFUL_LOG_ROLLS, SUCCESSFUL_LOG_ROLLS_DESC, 0L);
@@ -147,6 +150,11 @@ public class MetricsWALSourceImpl extends BaseSourceImpl implements MetricsWALSo
   @Override
   public void incrementSizeLogRoll() {
     sizeRollRequested.incr();
+  }
+
+  @Override
+  public void incrementSyncCountLogRoll() {
+    syncCountRollRequested.incr();
   }
 
   @Override

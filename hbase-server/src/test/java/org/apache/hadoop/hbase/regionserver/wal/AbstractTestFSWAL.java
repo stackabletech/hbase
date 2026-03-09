@@ -23,6 +23,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 import static org.mockito.Mockito.mock;
@@ -46,6 +47,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
+import java.util.concurrent.TimeUnit;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
@@ -680,6 +682,43 @@ public abstract class AbstractTestFSWAL {
     } finally {
       exec.shutdownNow();
       region.close();
+      wal.close();
+    }
+  }
+
+  @Test
+  public void testSyncCountRollThreshold() throws Exception {
+    Configuration conf = new Configuration(CONF);
+    conf.setInt("hbase.regionserver.wal.roll.on.sync.count", 5);
+    AbstractFSWAL<?> wal = newWAL(FS, CommonFSUtils.getWALRootDir(conf), DIR.toString(),
+      HConstants.HREGION_OLDLOGDIR_NAME, conf, null, true, null, null);
+    try {
+      // Simulate 4 syncs - should not trigger
+      for (int i = 0; i < 4; i++) {
+        wal.postSync(TimeUnit.MILLISECONDS.toNanos(1), 1);
+      }
+      assertFalse("Roll should not be requested before reaching threshold",
+        wal.doCheckSyncCount());
+
+      // 5th sync pushes us to the threshold
+      wal.postSync(TimeUnit.MILLISECONDS.toNanos(1), 1);
+      assertTrue("Roll should be requested after reaching threshold", wal.doCheckSyncCount());
+    } finally {
+      wal.close();
+    }
+  }
+
+  @Test
+  public void testSyncCountRollDisabledByDefault() throws Exception {
+    AbstractFSWAL<?> wal = newWAL(FS, CommonFSUtils.getWALRootDir(CONF), DIR.toString(),
+      HConstants.HREGION_OLDLOGDIR_NAME, CONF, null, true, null, null);
+    try {
+      // Default config - doCheckSyncCount should always return false
+      for (int i = 0; i < 100; i++) {
+        wal.postSync(TimeUnit.MILLISECONDS.toNanos(1), 1);
+      }
+      assertFalse("Sync count roll should be disabled by default", wal.doCheckSyncCount());
+    } finally {
       wal.close();
     }
   }

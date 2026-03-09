@@ -39,6 +39,8 @@ public interface WALActionsListener {
     LOW_REPLICATION,
     /** Too much time spent waiting for sync. */
     SLOW_SYNC,
+    /** Number of filesystem syncs exceeded configured threshold. */
+    SYNC_COUNT,
     /** I/O or other error. */
     ERROR
   };

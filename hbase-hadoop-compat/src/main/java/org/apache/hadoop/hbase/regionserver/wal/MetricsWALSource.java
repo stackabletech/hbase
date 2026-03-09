@@ -71,6 +71,9 @@ public interface MetricsWALSource extends BaseSource {
   String SIZE_ROLL_REQUESTED = "sizeRollRequest";
   String SIZE_ROLL_REQUESTED_DESC =
     "How many times a roll was requested due to file size roll threshold.";
+  String SYNC_COUNT_ROLL_REQUESTED = "syncCountRollRequest";
+  String SYNC_COUNT_ROLL_REQUESTED_DESC =
+    "How many times a roll was requested due to filesystem sync count threshold.";
   String WRITTEN_BYTES = "writtenBytes";
   String WRITTEN_BYTES_DESC = "Size (in bytes) of the data written to the WAL.";
   String SUCCESSFUL_LOG_ROLLS = "successfulLogRolls";
@@ -112,6 +115,8 @@ public interface MetricsWALSource extends BaseSource {
   void incrementSlowSyncLogRoll();
 
   void incrementSizeLogRoll();
+
+  void incrementSyncCountLogRoll();
 
   void incrementWrittenBytes(long val);
 

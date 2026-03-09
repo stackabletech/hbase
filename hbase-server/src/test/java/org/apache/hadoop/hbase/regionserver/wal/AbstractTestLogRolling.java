@@ -138,6 +138,9 @@ public abstract class AbstractTestLogRolling {
     // For slow sync threshold test: roll once after a sync above this threshold
     conf.setInt(FSHLog.ROLL_ON_SYNC_TIME_MS, 5000);
 
+    // For sync count threshold test: set high enough not to affect other tests
+    conf.setInt(AbstractFSWAL.ROLL_ON_SYNC_COUNT_KEY, 10000);
+
     // Slow sync executor.
     EXECUTOR = Executors
       .newSingleThreadScheduledExecutor(new ThreadFactoryBuilder().setNameFormat("Slow-sync-%d")
@@ -385,6 +388,56 @@ public abstract class AbstractTestLogRolling {
       assertEquals("Should have 1 WALs at the end", 1,
         AbstractFSWALProvider.getNumRolledLogFiles(log));
     }
+  }
+
+  @Test
+  public void testSyncCountLogRolling() throws Exception {
+    this.tableName = getName();
+    this.server = cluster.getRegionServerThreads().get(0).getRegionServer();
+
+    Table table = createTestTable(this.tableName);
+    server = TEST_UTIL.getRSForFirstRegionInTable(table.getName());
+
+    RegionInfo region = server.getRegions(TableName.valueOf(tableName)).get(0).getRegionInfo();
+    final AbstractFSWAL<?> log = (AbstractFSWAL<?>) server.getWAL(region);
+
+    final AtomicBoolean syncCountRollRequested = new AtomicBoolean(false);
+    log.registerWALActionsListener(new WALActionsListener() {
+      @Override
+      public void logRollRequested(RollRequestReason reason) {
+        if (reason == RollRequestReason.SYNC_COUNT) {
+          syncCountRollRequested.set(true);
+        }
+      }
+    });
+
+    // Roll to start fresh and reset sync count
+    log.rollWriter(true);
+    final WALProvider.WriterBase oldWriter = log.getWriter();
+
+    // Set fsSyncCount just below the threshold (10000) so a few writes push it over.
+    // This avoids needing thousands of writes and keeps the test fast.
+    log.fsSyncCount.set(9995);
+
+    // A handful of writes will push the sync count past the 10000 threshold
+    for (int i = 0; i < 20; i++) {
+      doPut(table, i);
+    }
+
+    // Give the roller a chance to act
+    TEST_UTIL.waitFor(10000, 100, new Waiter.ExplainingPredicate<Exception>() {
+      @Override
+      public boolean evaluate() throws Exception {
+        return log.getWriter() != oldWriter;
+      }
+
+      @Override
+      public String explainFailure() throws Exception {
+        return "Waited too long for sync count triggered WAL roll";
+      }
+    });
+
+    assertTrue("Expected a sync count roll request", syncCountRollRequested.get());
   }
 
   protected void doPut(Table table, int i) throws IOException {

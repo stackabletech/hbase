@@ -19,6 +19,7 @@ package org.apache.hadoop.hbase.regionserver.wal;
 
 import static org.apache.hadoop.hbase.regionserver.wal.WALActionsListener.RollRequestReason.ERROR;
 import static org.apache.hadoop.hbase.regionserver.wal.WALActionsListener.RollRequestReason.SIZE;
+import static org.apache.hadoop.hbase.regionserver.wal.WALActionsListener.RollRequestReason.SYNC_COUNT;
 import static org.apache.hadoop.hbase.util.FutureUtils.addListener;
 
 import com.lmax.disruptor.RingBuffer;
@@ -392,6 +393,8 @@ public class AsyncFSWAL extends AbstractFSWAL<AsyncWriter> {
           + ", logrollsize=" + logrollsize);
       }
       requestLogRoll(SIZE);
+    } else if (!isLogRollRequested() && doCheckSyncCount()) {
+      requestLogRoll(SYNC_COUNT);
     }
   }
 

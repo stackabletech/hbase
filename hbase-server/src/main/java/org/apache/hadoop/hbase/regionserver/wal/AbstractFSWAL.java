@@ -20,6 +20,7 @@ package org.apache.hadoop.hbase.regionserver.wal;
 import static org.apache.hadoop.hbase.regionserver.wal.WALActionsListener.RollRequestReason.ERROR;
 import static org.apache.hadoop.hbase.regionserver.wal.WALActionsListener.RollRequestReason.LOW_REPLICATION;
 import static org.apache.hadoop.hbase.regionserver.wal.WALActionsListener.RollRequestReason.SLOW_SYNC;
+import static org.apache.hadoop.hbase.regionserver.wal.WALActionsListener.RollRequestReason.SYNC_COUNT;
 import static org.apache.hadoop.hbase.trace.HBaseSemanticAttributes.WAL_IMPL;
 import static org.apache.hadoop.hbase.wal.AbstractFSWALProvider.WAL_FILE_NAME_DELIMITER;
 import static org.apache.hbase.thirdparty.com.google.common.base.Preconditions.checkArgument;
@@ -140,6 +141,9 @@ public abstract class AbstractFSWAL<W extends WriterBase> implements WAL {
   protected static final String SLOW_SYNC_ROLL_INTERVAL_MS =
     "hbase.regionserver.wal.slowsync.roll.interval.ms";
   protected static final int DEFAULT_SLOW_SYNC_ROLL_INTERVAL_MS = 60 * 1000; // in ms, 1 minute
+  protected static final String ROLL_ON_SYNC_COUNT_KEY =
+    "hbase.regionserver.wal.roll.on.sync.count";
+  protected static final int DEFAULT_ROLL_ON_SYNC_COUNT = 0; // 0 = disabled
 
   public static final String WAL_SYNC_TIMEOUT_MS = "hbase.regionserver.wal.sync.timeout";
   protected static final int DEFAULT_WAL_SYNC_TIMEOUT_MS = 5 * 60 * 1000; // in ms, 5min
@@ -219,6 +223,8 @@ public abstract class AbstractFSWAL<W extends WriterBase> implements WAL {
   protected final int slowSyncRollThreshold;
   protected final int slowSyncCheckInterval;
   protected final AtomicInteger slowSyncCount = new AtomicInteger();
+  protected final int rollOnSyncCount;
+  protected final AtomicInteger fsSyncCount = new AtomicInteger();
 
   private final long walSyncTimeoutNs;
 
@@ -509,6 +515,7 @@ public abstract class AbstractFSWAL<W extends WriterBase> implements WAL {
       conf.getInt(SLOW_SYNC_ROLL_THRESHOLD, DEFAULT_SLOW_SYNC_ROLL_THRESHOLD);
     this.slowSyncCheckInterval =
       conf.getInt(SLOW_SYNC_ROLL_INTERVAL_MS, DEFAULT_SLOW_SYNC_ROLL_INTERVAL_MS);
+    this.rollOnSyncCount = conf.getInt(ROLL_ON_SYNC_COUNT_KEY, DEFAULT_ROLL_ON_SYNC_COUNT);
     this.walSyncTimeoutNs = TimeUnit.MILLISECONDS.toNanos(conf.getLong(WAL_SYNC_TIMEOUT_MS,
       conf.getLong("hbase.regionserver.hlog.sync.timeout", DEFAULT_WAL_SYNC_TIMEOUT_MS)));
     this.syncFutureCache = new SyncFutureCache(conf);
@@ -929,6 +936,7 @@ public abstract class AbstractFSWAL<W extends WriterBase> implements WAL {
         // We got a new writer, so reset the slow sync count
         lastTimeCheckSlowSync = EnvironmentEdgeManager.currentTime();
         slowSyncCount.set(0);
+        fsSyncCount.set(0);
         // Can we delete any of the old log files?
         if (getNumRolledLogFiles() > 0) {
           cleanOldLogs();
@@ -1176,6 +1184,7 @@ public abstract class AbstractFSWAL<W extends WriterBase> implements WAL {
   }
 
   protected final void postSync(final long timeInNanos, final int handlerSyncs) {
+    fsSyncCount.incrementAndGet();
     if (timeInNanos > this.slowSyncNs) {
       String msg = new StringBuilder().append("Slow sync cost: ")
         .append(TimeUnit.NANOSECONDS.toMillis(timeInNanos)).append(" ms, current pipeline: ")
@@ -1353,6 +1362,20 @@ public abstract class AbstractFSWAL<W extends WriterBase> implements WAL {
       slowSyncCount.set(0);
     }
     return result;
+  }
+
+  /** Returns true if we exceeded the max sync count for the current WAL file */
+  protected boolean doCheckSyncCount() {
+    if (rollOnSyncCount <= 0) {
+      return false;
+    }
+    int count = fsSyncCount.get();
+    if (count >= rollOnSyncCount) {
+      LOG.warn("Requesting log roll because sync count threshold reached; count=" + count
+        + ", threshold=" + rollOnSyncCount);
+      return true;
+    }
+    return false;
   }
 
   public void checkLogLowReplication(long checkInterval) {

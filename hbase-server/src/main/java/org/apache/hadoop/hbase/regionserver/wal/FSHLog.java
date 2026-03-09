@@ -21,6 +21,7 @@ import static org.apache.hadoop.hbase.regionserver.wal.WALActionsListener.RollRe
 import static org.apache.hadoop.hbase.regionserver.wal.WALActionsListener.RollRequestReason.LOW_REPLICATION;
 import static org.apache.hadoop.hbase.regionserver.wal.WALActionsListener.RollRequestReason.SIZE;
 import static org.apache.hadoop.hbase.regionserver.wal.WALActionsListener.RollRequestReason.SLOW_SYNC;
+import static org.apache.hadoop.hbase.regionserver.wal.WALActionsListener.RollRequestReason.SYNC_COUNT;
 
 import com.lmax.disruptor.BlockingWaitStrategy;
 import com.lmax.disruptor.EventHandler;
@@ -722,6 +723,8 @@ public class FSHLog extends AbstractFSWAL<Writer> {
       } else if (doCheckSlowSync()) {
         // We log this already in checkSlowSync
         requestLogRoll(SLOW_SYNC);
+      } else if (doCheckSyncCount()) {
+        requestLogRoll(SYNC_COUNT);
       }
     } finally {
       rollWriterLock.unlock();

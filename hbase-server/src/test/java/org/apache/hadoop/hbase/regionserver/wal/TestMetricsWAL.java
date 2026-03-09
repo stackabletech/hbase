@@ -55,9 +55,10 @@ public class TestMetricsWAL {
     metricsWAL.logRollRequested(WALActionsListener.RollRequestReason.LOW_REPLICATION);
     metricsWAL.logRollRequested(WALActionsListener.RollRequestReason.SLOW_SYNC);
     metricsWAL.logRollRequested(WALActionsListener.RollRequestReason.SIZE);
+    metricsWAL.logRollRequested(WALActionsListener.RollRequestReason.SYNC_COUNT);
 
-    // Log roll was requested four times
-    verify(source, times(4)).incrementLogRollRequested();
+    // Log roll was requested five times
+    verify(source, times(5)).incrementLogRollRequested();
     // One was because of an IO error.
     verify(source, times(1)).incrementErrorLogRoll();
     // One was because of low replication on the hlog.
@@ -66,6 +67,8 @@ public class TestMetricsWAL {
     verify(source, times(1)).incrementSlowSyncLogRoll();
     // One was because of hlog file length limit.
     verify(source, times(1)).incrementSizeLogRoll();
+    // One was because of sync count threshold.
+    verify(source, times(1)).incrementSyncCountLogRoll();
   }
 
   @Test
